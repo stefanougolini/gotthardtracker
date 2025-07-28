@@ -1,0 +1,26 @@
+
+import gspread as gs
+from gspread_dataframe import set_with_dataframe
+import boto3
+import awswrangler as wr
+
+def lambda_handler(event, context):
+
+    out_path = 
+
+    s3 = boto3.client('s3')
+    old_csv = wr.s3.read_csv(out_path)
+
+    print(old_csv.iloc[-2:, 0:9])
+
+
+    gc = gs.service_account(filename='serviceaccount.json')
+    
+    sh = gc.open_by_url()
+    worksheet1 = sh.worksheet('Master')
+
+    df = old_csv.iloc[-2:, 0:9]
+    df_values = df.values.tolist()
+    sh.values_append('Master', {'valueInputOption' : 'USER_ENTERED'}, {'values' : df_values})
+    #set_with_dataframe(worksheet=worksheet1, dataframe=old_csv, include_index=False, include_column_header=True, resize=False)
+    return
