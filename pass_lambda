@@ -1,0 +1,69 @@
+import boto3
+import awswrangler as wr
+import pandas as pd
+import googlemaps
+import datetime
+import dateutil
+import gspread as gs
+from gspread_dataframe import set_with_dataframe, get_as_dataframe
+
+
+def lambda_handler(event, context):
+    cet = dateutil.tz.gettz('Europe/Zurich')
+    Gosch_exit = '46.67647148808692, 8.59314934354406'
+    Pass_dirnorth = '46.536147266709065,8.56934318509382'
+    Faido = '46.465258064711676,8.820662652405248'
+    Wassen_outhighw = '46.70577956355965,8.600903349525924'
+    Quinto_outhighw = '46.49989005792847, 8.728773805895143'
+    Airolo_exit = '46.525874426424785, 8.612359543119986'
+    Erstfeld = '46.83036316828439,8.638770495169956'
+    api_key = 
+
+    gmaps = googlemaps.Client(key=api_key)
+
+    data3 = gmaps.distance_matrix(Quinto_outhighw, Gosch_exit, mode='driving', departure_time='now', avoid='tolls')['rows'][0]['elements'][0]
+    df3 = pd.DataFrame(data3)
+
+    now = datetime.datetime.isoformat(datetime.datetime.now(tz=cet))
+    now = pd.to_datetime(now)
+    nowr = now.round('15min')
+
+    dn = {'direction': [0],
+          'duration': [df3.loc['value', 'duration']],
+          'duration_in_traffic': [df3.loc['value', 'duration_in_traffic']],
+          'delaymin' : [round(df3.loc['value', 'duration_in_traffic']/60)],
+          'timestamp': [now.isoformat()],
+          'date': [nowr.date().isoformat()],
+          'time': [nowr.strftime('%H:%M')],
+          'weekday': [nowr.weekday()],
+          'cw': [nowr.isocalendar().week]}
+
+
+    data5 = gmaps.distance_matrix(Wassen_outhighw, Airolo_exit, mode='driving', departure_time='now', avoid='tolls')['rows'][0]['elements'][0]
+    df5 = pd.DataFrame(data5)
+
+
+    ds = {'direction': [1],
+          'duration': [df5.loc['value', 'duration']],
+          'duration_in_traffic': [df5.loc['value', 'duration_in_traffic']],
+          'delaymin' : [round(df5.loc['value', 'duration_in_traffic']/60)],
+          'timestamp': [now.isoformat()],
+          'date': [nowr.date().isoformat()],
+          'time': [nowr.strftime('%H:%M')],
+          'weekday': [nowr.weekday()],
+          'cw': [nowr.isocalendar().week]}
+
+    dfn = pd.DataFrame(data=dn)
+    dfs = pd.DataFrame(data=ds)
+
+    toadd = pd.concat([dfs, dfn])
+
+    gc = gs.service_account(filename='serviceaccount.json')
+    sh = gc.open_by_url()
+    ws = sh.worksheet('Master')
+    old_sheet = pd.DataFrame(ws.get_all_records())
+    new_sheet = pd.concat([old_sheet, toadd])
+    ws.clear()
+    set_with_dataframe(worksheet=ws, dataframe=new_sheet, include_index=False, include_column_header=True, resize=True)
+
+    return
