@@ -1,0 +1,99 @@
+import boto3
+import awswrangler as wr
+import pandas as pd
+import googlemaps
+import datetime
+import dateutil
+
+
+def lambda_handler(event, context):
+    # TODO implement
+     cet = dateutil.tz.gettz('Europe/Zurich')
+
+     p1 = '46.37679894514246,8.90773290221741'
+     SudPort = '46.52751042644571,8.600916718333966'
+     NordPort = '46.672438624095584,8.5926971182703'
+     Faido = '46.465258064711676,8.820662652405248'
+     Quinto = '46.50037474473058,8.727059395194008'
+     Wassen = '46.701407476150194,8.59764576512569'
+     Amsteg = '46.76876304646415,8.669228724423922'
+     Erstfeld = '46.83036316828439,8.638770495169956'
+
+     api_key = 
+     ndata_path = 
+     sdata_path = 
+     out_path = 
+     bucket = 
+
+     gmaps = googlemaps.Client(key=api_key)
+
+
+     # data1 = gmaps.distance_matrix(Faido, SudPort, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     # data1['timestamp'] = datetime.datetime.isoformat(datetime.datetime.now())
+     # df1 = pd.DataFrame(data1)
+
+     data2 = gmaps.distance_matrix(Faido, Quinto, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     df2 = pd.DataFrame(data2)
+
+     data3 = gmaps.distance_matrix(Quinto, SudPort, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     df3 = pd.DataFrame(data3)
+
+     now = datetime.datetime.isoformat(datetime.datetime.now(tz=cet))
+     now = pd.to_datetime(now)
+     nowr = now.round('15min')
+
+
+     dn = {'direction' : [0],
+          'duration' : [df3.loc['value', 'duration'] + df2.loc['value', 'duration']],
+          'duration_in_traffic' : [df3.loc['value', 'duration_in_traffic'] + df2.loc['value', 'duration_in_traffic']],
+          'delaymin' : [round(((df3.loc['value', 'duration_in_traffic'] + df2.loc['value', 'duration_in_traffic']) - (df3.loc['value', 'duration'] + df2.loc['value', 'duration']))/60)],
+          'timestamp': [now.isoformat()],
+          'date': [nowr.date().strftime('%d/%m/%Y')],
+          'time': [nowr.strftime('%H:%M')],
+          'weekday': [nowr.weekday()],
+          'cw': [nowr.isocalendar().week]
+     }
+
+
+
+
+     # data4 = gmaps.distance_matrix(Erstfeld, NordPort, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     # data4['timestamp'] = datetime.datetime.isoformat(datetime.datetime.now())
+     # df4 = pd.DataFrame(data4)
+     #
+     data5 = gmaps.distance_matrix(Erstfeld, Amsteg, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     df5 = pd.DataFrame(data5)
+
+     data6 = gmaps.distance_matrix(Amsteg, Wassen, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     df6 = pd.DataFrame(data6)
+
+     data7 = gmaps.distance_matrix(Wassen, NordPort, mode='driving', departure_time='now')['rows'][0]['elements'][0]
+     df7 = pd.DataFrame(data7)
+
+     ds = {'direction' : [1],
+           'duration' : [df5.loc['value', 'duration'] + df6.loc['value', 'duration'] + df7.loc['value', 'duration']],
+          'duration_in_traffic' : [df5.loc['value', 'duration_in_traffic'] + df6.loc['value', 'duration_in_traffic'] + df7.loc['value', 'duration_in_traffic']],
+          'delaymin' : [round(((df5.loc['value', 'duration_in_traffic'] + df6.loc['value', 'duration_in_traffic'] + df7.loc['value', 'duration_in_traffic']) - (df5.loc['value', 'duration'] + df6.loc['value', 'duration'] + df7.loc['value', 'duration']))/60)],
+          'timestamp': [now.isoformat()],
+          'date': [nowr.date().strftime('%d/%m/%Y')],
+          'time': [nowr.strftime('%H:%M')],
+          'weekday': [nowr.weekday()],
+          'cw': [nowr.isocalendar().week]}
+
+     dfn = pd.DataFrame(data=dn)
+     dfs = pd.DataFrame(data=ds)
+
+
+     toadd = pd.concat([dfs, dfn])
+
+     #toadd.to_csv('out_raw.csv')
+
+
+
+
+     s3 = boto3.client('s3')
+     old_csv = wr.s3.read_csv(out_path)
+     new_csv = pd.concat([old_csv, toadd])
+     wr.s3.to_csv(new_csv, out_path, index=False)
+
+     return
